@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus Bot Requests</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; font-family: 'Inter', sans-serif; }
+        .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .neon-text { text-shadow: 0 0 10px rgba(56, 189, 248, 0.8); }
+        .btn-neon { transition: all 0.3s; }
+        .btn-neon:hover { box-shadow: 0 0 15px rgba(56, 189, 248, 0.6); transform: translateY(-2px); }
+        .btn-active { background-color: #38bdf8; color: #0f172a; box-shadow: 0 0 15px rgba(56, 189, 248, 0.8); }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+    <div id="loginModal" class="fixed inset-0 bg-slate-900 z-50 flex items-center justify-center transition-opacity duration-300">
+        <div class="glass-panel p-8 rounded-2xl w-full max-w-md text-center">
+            <h2 class="text-3xl font-bold mb-2 neon-text text-sky-400">Akses Sistem</h2>
+            <p class="text-slate-400 mb-6">Masukkan nama lengkap kamu untuk melanjutkan</p>
+            <input type="text" id="fullNameInput" placeholder="Nama Panjang..." class="w-full bg-slate-800 text-white border border-slate-600 rounded-lg px-4 py-3 mb-4 focus:outline-none focus:border-sky-400">
+            <button onclick="saveName()" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold py-3 rounded-lg btn-neon">Masuk</button>
+        </div>
+    </div>
+
+    <div id="mainApp" class="hidden w-full max-w-2xl glass-panel rounded-3xl p-6 md:p-10 shadow-2xl">
+        <div class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+            <div>
+                <h1 class="text-2xl font-bold text-sky-400 neon-text">Terminal Request</h1>
+                <p class="text-sm text-slate-400" id="welcomeText">Welcome, User</p>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-slate-400 uppercase tracking-wider">Total Request Hari Ini</div>
+                <div class="text-3xl font-bold text-emerald-400" id="totalRequests">0</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <button onclick="selectType('Lagu')" id="btnLagu" class="py-4 border border-slate-600 rounded-xl text-lg font-semibold text-slate-300 hover:bg-slate-800 transition-colors">🎵 Request Lagu</button>
+            <button onclick="selectType('Fitur')" id="btnFitur" class="py-4 border border-slate-600 rounded-xl text-lg font-semibold text-slate-300 hover:bg-slate-800 transition-colors">⚙️ Request Fitur</button>
+        </div>
+
+        <div class="mb-6">
+            <textarea id="requestMessage" rows="4" placeholder="Ketik pesan/detail request kamu di sini..." class="w-full bg-slate-800 text-white border border-slate-600 rounded-xl p-4 focus:outline-none focus:border-sky-400 resize-none"></textarea>
+        </div>
+
+        <button onclick="submitRequest()" id="submitBtn" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-900 font-bold py-4 rounded-xl text-lg btn-neon">Kirim ke Sistem</button>
+    </div>
+
+    <script>
+        let selectedType = '';
+        let userName = '';
+
+        // Initialize
+        window.onload = () => {
+            const savedName = localStorage.getItem('fullName');
+            if (savedName) {
+                userName = savedName;
+                document.getElementById('loginModal').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('hidden');
+                document.getElementById('welcomeText').innerText = `ID: ${userName}`;
+                fetchStats();
+            }
+        };
+
+        function saveName() {
+            const input = document.getElementById('fullNameInput').value.trim();
+            if (input.length < 3) return alert('Masukkan nama dengan benar!');
+            localStorage.setItem('fullName', input);
+            window.location.reload();
+        }
+
+        function selectType(type) {
+            selectedType = type;
+            document.getElementById('btnLagu').classList.remove('btn-active');
+            document.getElementById('btnFitur').classList.remove('btn-active');
+            
+            if (type === 'Lagu') document.getElementById('btnLagu').classList.add('btn-active');
+            if (type === 'Fitur') document.getElementById('btnFitur').classList.add('btn-active');
+        }
+
+        async function fetchStats() {
+            try {
+                const res = await fetch('/api/data');
+                const data = await res.json();
+                
+                // Hitung request hari ini
+                const today = new Date().toISOString().split('T')[0];
+                const todayReqs = data.requests.filter(r => r.date.startsWith(today)).length;
+                document.getElementById('totalRequests').innerText = todayReqs;
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function submitRequest() {
+            if (!selectedType) return alert('Pilih tipe request (Lagu/Fitur) dulu!');
+            const message = document.getElementById('requestMessage').value.trim();
+            if (!message) return alert('Pesan tidak boleh kosong!');
+
+            const btn = document.getElementById('submitBtn');
+            btn.innerText = 'Mengirim...';
+            btn.disabled = true;
+
+            try {
+                const res = await fetch('/api/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: userName, type: selectedType, message })
+                });
+
+                if (res.ok) {
+                    alert('Berhasil dikirim!');
+                    document.getElementById('requestMessage').value = '';
+                    selectType(''); // Reset
+                    fetchStats();
+                } else {
+                    alert('Gagal mengirim request.');
+                }
+            } catch (err) {
+                alert('Terjadi kesalahan jaringan.');
+            } finally {
+                btn.innerText = 'Kirim ke Sistem';
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
